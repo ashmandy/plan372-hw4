@@ -123,13 +123,13 @@ head(airport_pairs)
 ```{r}
 ggplot(airport_pairs, aes(x = total_populationE, y = passengers)) +
   geom_point(size = 1) +
-  geom_abline(intercept = intercept, slope = slope, color = "red") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
   labs(title = "Origin Population vs. Total Passengers",
        x = "Origin Population (total_populationE)",
        y = "Total Passengers")
 
 ggplot(airport_pairs, aes(x = total_populationE, y = passengers)) +
-  geom_abline(intercept = intercept, slope = slope, color = "red") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
   geom_point(size = 1) +
   labs(title = "Destination Population vs. Total Passengers",
        x = "Destination Population (total_populationE)",
@@ -137,7 +137,7 @@ ggplot(airport_pairs, aes(x = total_populationE, y = passengers)) +
 
 ggplot(airport_pairs, aes(x = distancemiles, y = passengers)) +
   geom_point(alpha = 1) +
-  geom_abline(intercept = intercept, slope = slope, color = "red") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
   labs(title = "Flight Distance vs. Total Passengers",
        x = "Flight Distance (miles)",
        y = "Total Passengers")
@@ -236,3 +236,12 @@ head(both_directions)
 model = lm(passengers~ median_incomeE + distancemiles, data = airport_pairs)
 summary(model)
 ```
+
+**References**
+
+I did have to use some external sources for this homework, I ran into some issues for the passenger volume prediction, and used geom_smooth for a trend line for my scatterplot. all the sources that i used are linked below:
+
+1.  <https://www.linkedin.com/advice/0/how-can-you-add-trend-line-your-r-scatter-plot-qahre>
+2.  <https://miamioh.edu/centers-institutes/center-for-analytics-data-science/students/coding-tutorials/python/pandas-dataframes.html#:~:text=A%20dataframe%20is%20a%20data,”%20or%20“food%20group.”>
+3.  <https://r4ds.hadley.nz/communication>
+4.  <https://www.statology.org/lm-function-in-r/>
