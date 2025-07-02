@@ -1,0 +1,226 @@
+---
+title: "On Demand Air Routes"
+author: "Mandy Langlois"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidycensus)
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+
+```
+
+Load the data from the CSV.
+
+```{r}
+data= read_csv(here::here("airport_pairs.csv"))
+```
+
+```{r}
+head(data)
+```
+
+Analyze the data through visuals to find and understand patterns.
+
+```{r}
+ggplot(data, aes(x=passengers)) +
+  geom_histogram()
+```
+
+```{r}
+ggplot(data, aes(x=distancemiles)) +
+  geom_histogram()
+```
+
+```{r}
+ggplot(data, aes(x= distancemiles, y=passengers)) +
+  geom_point(size=0.1)
+
+  
+  
+
+```
+
+Create a table of the existing routes to or from RDU.
+
+```{r}
+airport_pairs= data |>
+  filter((origin=="RDU" | dest== "RDU") & passengers > 10000)
+
+head(airport_pairs)
+```
+
+```{r}
+data_cbsa = get_acs(
+  geography= "cbsa",
+  variable=c(
+    "total_population" = "B01003_001",
+    "high_income_population" = "B19013_001"
+   
+),
+  year=2022,
+  survey="acs5",
+  output="wide",
+  geometry=F
+)
+head(data_cbsa)
+```
+
+Left join failed to work as expected, output was an error code. Joined the cbsa to the Airport data, used str(data) and str(dat_cbsa) to verified that the GEOID for both the origin_cbsa , and dest_cbsa are chr.
+
+```{r}
+data = data |>
+  mutate(origin_cbsa = format(origin_cbsa), dest_cbsa = format(dest_cbsa))
+
+str(data)
+```
+
+```{r}
+str(data_cbsa)
+```
+
+performing the joins one at a time to better inspect the output.
+
+```{r}
+airport_pairs = data |>
+  left_join(data_cbsa, by = c("origin_cbsa" = "GEOID"))
+
+head(airport_pairs)
+str(airport_pairs)
+
+airport_pairs = data |>
+  left_join(data_cbsa, by = c("dest_cbsa" = "GEOID"))
+
+head(airport_pairs)
+
+
+
+```
+
+```{r}
+ggplot(airport_pairs, aes(x = total_populationE, y = passengers)) +
+  geom_point(size = 1) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Origin Population vs. Total Passengers",
+       x = "Origin Population (total_populationE)",
+       y = "Total Passengers")
+
+ggplot(airport_pairs, aes(x = total_populationE, y = passengers)) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  geom_point(size = 1) +
+  labs(title = "Destination Population vs. Total Passengers",
+       x = "Destination Population (total_populationE)",
+       y = "Total Passengers")
+
+ggplot(airport_pairs, aes(x = distancemiles, y = passengers)) +
+  geom_point(alpha = 1) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Flight Distance vs. Total Passengers",
+       x = "Flight Distance (miles)",
+       y = "Total Passengers")
+
+```
+
+Total populationM is currently a row with NA values. filter and remove rows with missing values
+
+```{r}
+airport_pairs = airport_pairs |>
+  filter(!is.na(total_populationM))
+
+head(airport_pairs)
+```
+
+```{r}
+model = lm(passengers~ total_populationE + distancemiles + high_income_populationE, data = airport_pairs)
+
+summary(model)
+```
+
+```{r}
+colnames(airport_pairs)
+```
+
+Using median household income to improve the model to explain more variance in passengers.
+
+```{r}
+  income_data = get_acs(
+    geography = "cbsa",
+    variables = c("median_income" = "B19013_001"),
+    year = 2022,
+    survey = "acs5",
+    output = "wide"
+    )
+
+head(income_data)
+```
+
+```{r}
+airport_pairs = data |>
+  left_join(income_data, by = c("origin_cbsa" = "GEOID"))
+
+airport_pairs = data |>
+  left_join(income_data, by = c("dest_cbsa" = "GEOID"))
+
+head(airport_pairs)
+
+```
+
+```{r}
+model = lm(passengers~ median_incomeE + distancemiles, data = airport_pairs)
+summary(model)
+```
+
+## 
+
+Passenger Volume Prediction.
+
+```{r}
+
+  inc_data <- income_data |>
+  filter(
+    NAME == "Portland-Vancouver-Hillsboro, OR-WA Metro Area" |
+    NAME == "El Paso, TX Metro Area" |
+    NAME == "Tallahassee, FL Metro Area" |
+    NAME == "Sacramento--Roseville--Arden-Arcade, CA Metro Area"
+  )
+head(inc_data)
+```
+
+```{r}
+intercept =  6337.0833
+median_income_coef = 1.02817
+distancemiles_coef =  -18.66439
+
+routes = data.frame(
+origin = "RDU",
+dest = c("PDX", "ELP", "THL", "SMF"),
+distancemiles = c(2363, 1606, 496, 2345),
+median_income = c(90451,59757,55344,50000))
+
+routes = routes|>
+mutate(predicted_passengers  = intercept +
+         (median_income_coef * median_income) +
+         (distancemiles_coef * distancemiles))
+
+both_directions = routes |>
+  bind_rows(routes |>
+           mutate(origin = dest, dest = "RDU"))
+
+head(both_directions)
+```
+
+```{r}
+model = lm(passengers~ median_incomeE + distancemiles, data = airport_pairs)
+summary(model)
+```
+
+**References**
+
+<https://www.linkedin.com/advice/0/how-can-you-add-trend-line-your-r-scatter-plot-qahre>
+
+1.  <https://miamioh.edu/centers-institutes/center-for-analytics-data-science/students/coding-tutorials/python/pandas-dataframes.html#:~:text=A%20dataframe%20is%20a%20data,”%20or%20“food%20group.”>
+2.  <https://r4ds.hadley.nz/communication>
+3.  <https://www.statology.org/lm-function-in-r/>
